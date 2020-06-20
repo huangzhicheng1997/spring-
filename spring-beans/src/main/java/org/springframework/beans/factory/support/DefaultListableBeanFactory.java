@@ -853,38 +853,53 @@ public class DefaultListableBeanFactory extends AbstractAutowireCapableBeanFacto
 
 		// Iterate over a copy to allow for init methods which in turn register new bean definitions.
 		// While this may not be part of the regular factory bootstrap, it does otherwise work fine.
+		//生成所有bean名的一个副本
 		List<String> beanNames = new ArrayList<>(this.beanDefinitionNames);
 
 		// Trigger initialization of all non-lazy singleton beans...
+		//触发所有非懒加载的单例bean的初始化
 		for (String beanName : beanNames) {
+			//拿到一个最终的bean定义
 			RootBeanDefinition bd = getMergedLocalBeanDefinition(beanName);
+			//bean不是抽象的（父bean），bean是单例的，而且bean不是懒加载的，进行提前初始化
 			if (!bd.isAbstract() && bd.isSingleton() && !bd.isLazyInit()) {
+				//是否为FactoryBean
 				if (isFactoryBean(beanName)) {
+					//获取factoryBean 而不是factoryBean.getObject获得到的bean，需要beanName加上&符
 					Object bean = getBean(FACTORY_BEAN_PREFIX + beanName);
 					if (bean instanceof FactoryBean) {
 						final FactoryBean<?> factory = (FactoryBean<?>) bean;
 						boolean isEagerInit;
+						//有安全管理器 而且是SmartFactoryBean（SmartFactoryBean不怎么用，可以不去了解，用来决定是否懒加载的）
 						if (System.getSecurityManager() != null && factory instanceof SmartFactoryBean) {
 							isEagerInit = AccessController.doPrivileged((PrivilegedAction<Boolean>)
 											((SmartFactoryBean<?>) factory)::isEagerInit,
 									getAccessControlContext());
 						}
 						else {
+							//没有安全管理器 而且是SmartFactoryBean
 							isEagerInit = (factory instanceof SmartFactoryBean &&
 									((SmartFactoryBean<?>) factory).isEagerInit());
 						}
+
+						//FactoryBean是否直接加载真正的bean
 						if (isEagerInit) {
+							//实例化真正的bean（内部其实调用了FactoryBean的getObject方法）
 							getBean(beanName);
 						}
+
+						//SmartFactoryBean定义为懒加载则跳过次此循环，看下一个beanName
 					}
 				}
 				else {
+					//实例化bean
 					getBean(beanName);
 				}
 			}
 		}
 
 		// Trigger post-initialization callback for all applicable beans...
+		//触发全部实例化后的后处理，调用所有实例化了的SmartInitializingSingleton类型的bean的回调方法（没有任何参数）
 		for (String beanName : beanNames) {
 			Object singletonInstance = getSingleton(beanName);
 			if (singletonInstance instanceof SmartInitializingSingleton) {

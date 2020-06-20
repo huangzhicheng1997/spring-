@@ -59,6 +59,7 @@ import org.springframework.beans.BeansException;
  * @see BeanPostProcessor
  * @see PropertyResourceConfigurer
  */
+// beanFactory初始化完毕后，可以通过此spi去修改beanDefinition，甚至提前进行的初始化bean
 @FunctionalInterface
 public interface BeanFactoryPostProcessor {
 

@@ -43,6 +43,7 @@ import org.springframework.util.ObjectUtils;
  * @author Juergen Hoeller
  * @since 4.3.4
  */
+//早期的ApplicationListener注册器，主要为了检查内部的bean比如各种后处理器
 class ApplicationListenerDetector implements DestructionAwareBeanPostProcessor, MergedBeanDefinitionPostProcessor {
 
 	private static final Log logger = LogFactory.getLog(ApplicationListenerDetector.class);
@@ -57,6 +58,7 @@ class ApplicationListenerDetector implements DestructionAwareBeanPostProcessor, 
 	}
 
 
+	//merge完beanDefinition后 把ApplicationListener的名字和我想要的bean的配置信息，存到全局变量中
 	@Override
 	public void postProcessMergedBeanDefinition(RootBeanDefinition beanDefinition, Class<?> beanType, String beanName) {
 		if (ApplicationListener.class.isAssignableFrom(beanType)) {
@@ -69,6 +71,9 @@ class ApplicationListenerDetector implements DestructionAwareBeanPostProcessor, 
 		return bean;
 	}
 
+	//初始化bean后 如果是ApplicationListener就把listener注册到spring容器中
+	//这块比较精妙由于需要知道bean是否为单例模式的，不是单例的就不注册为Listener
+	// 所以需要拿到BeanDefinition，那就还需要实现MergeBeanDefinitionPostProcessor获取bean定义
 	@Override
 	public Object postProcessAfterInitialization(Object bean, String beanName) {
 		if (bean instanceof ApplicationListener) {

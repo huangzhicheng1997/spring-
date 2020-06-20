@@ -71,12 +71,15 @@ import org.springframework.util.StringUtils;
 public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements SingletonBeanRegistry {
 
 	/** Cache of singleton objects: bean name to bean instance. */
+	/*一级缓存*/
 	private final Map<String, Object> singletonObjects = new ConcurrentHashMap<>(256);
 
 	/** Cache of singleton factories: bean name to ObjectFactory. */
+	/*三级缓存*/
 	private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<>(16);
 
 	/** Cache of early singleton objects: bean name to bean instance. */
+	/*二级缓存*/
 	private final Map<String, Object> earlySingletonObjects = new HashMap<>(16);
 
 	/** Set of registered singletons, containing the bean names in registration order. */
@@ -174,14 +177,21 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	 */
 	@Nullable
 	protected Object getSingleton(String beanName, boolean allowEarlyReference) {
+		//缓存中读取bean   (一级缓存)
 		Object singletonObject = this.singletonObjects.get(beanName);
+		//如果缓存中没有，而且bean还在创建中  （二级缓存-早期bean）
 		if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
 			synchronized (this.singletonObjects) {
+				//早期bean如果已经放到缓存里直接获取，没有调用ObjectFactory的getObject方法
 				singletonObject = this.earlySingletonObjects.get(beanName);
+				//二级缓存中没有 而且允许暴露早期bean
 				if (singletonObject == null && allowEarlyReference) {
+					//到三级缓存中获取
 					ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
+					//获取到调用工厂方法
 					if (singletonFactory != null) {
 						singletonObject = singletonFactory.getObject();
+						//早期bean存入缓存（与单例工厂缓存互斥）（用于解决循环依赖）
 						this.earlySingletonObjects.put(beanName, singletonObject);
 						this.singletonFactories.remove(beanName);
 					}
@@ -202,8 +212,10 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 	public Object getSingleton(String beanName, ObjectFactory<?> singletonFactory) {
 		Assert.notNull(beanName, "Bean name must not be null");
 		synchronized (this.singletonObjects) {
+			//检查是否已经创建过了
 			Object singletonObject = this.singletonObjects.get(beanName);
 			if (singletonObject == null) {
+				//单例是否在销毁
 				if (this.singletonsCurrentlyInDestruction) {
 					throw new BeanCreationNotAllowedException(beanName,
 							"Singleton bean creation not allowed while singletons of this factory are in destruction " +
@@ -212,6 +224,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 				if (logger.isDebugEnabled()) {
 					logger.debug("Creating shared instance of singleton bean '" + beanName + "'");
 				}
+				//把正在初始的此bean放入正在初始化的bean集合 singletonsCurrentlyInCreation
 				beforeSingletonCreation(beanName);
 				boolean newSingleton = false;
 				boolean recordSuppressedExceptions = (this.suppressedExceptions == null);
@@ -219,6 +232,7 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					this.suppressedExceptions = new LinkedHashSet<>();
 				}
 				try {
+					//通过ObjectFactory获取bean实例（主要逻辑在BeanFactory的createBean方法，bean的生命周期)
 					singletonObject = singletonFactory.getObject();
 					newSingleton = true;
 				}
@@ -242,9 +256,11 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 					if (recordSuppressedExceptions) {
 						this.suppressedExceptions = null;
 					}
+					//一个bean诞生了也注入完了从singletonsCurrentlyInCreation中移除
 					afterSingletonCreation(beanName);
 				}
 				if (newSingleton) {
+					//三级缓存的bean转移到二级缓存
 					addSingleton(beanName, singletonObject);
 				}
 			}
@@ -430,10 +446,12 @@ public class DefaultSingletonBeanRegistry extends SimpleAliasRegistry implements
 			return false;
 		}
 		String canonicalName = canonicalName(beanName);
+
 		Set<String> dependentBeans = this.dependentBeanMap.get(canonicalName);
 		if (dependentBeans == null) {
 			return false;
 		}
+		//dependentBeanMap还未注册此dependentBeanName，就已经存在则说明出现了循环
 		if (dependentBeans.contains(dependentBeanName)) {
 			return true;
 		}
